@@ -100,6 +100,6 @@ ENV/
 # mypy
 .mypy_cache/
 
-# pycharm
+# file: ~/.gitignore_global
+.DS_Store
 .idea
-.idea/
