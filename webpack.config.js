@@ -10,11 +10,11 @@ module.exports = {
   entry,
   output: {
     path: outputPath,
-    filename: 'app.js',
+    filename: 'build.js',
   },
   module: {
     rules: [
-        { test: entry, loader: "expose-loader?app" },
+        { test: entry, loader: "expose-loader?build" },
         { test: /\.html$/, loader: 'html-loader' },
     ].concat(vtkRules),
   },
