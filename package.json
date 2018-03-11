@@ -8,6 +8,10 @@
   },
   "author": "",
   "license": "ISC",
+   "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Annieday/MiniProjectDataVisualization.git"
+  },
   "bugs": {
     "url": "https://github.com/Annieday/MiniProjectDataVisualization/issues"
   },
