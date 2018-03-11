@@ -7,14 +7,26 @@ from django.http import HttpRequest
 from django.template import RequestContext
 from datetime import datetime
 
+# def home(request):
+#     """Renders the home page."""
+#     assert isinstance(request, HttpRequest)
+#     return render(
+#         request,
+#         'app/index.html',
+#         {
+#             'title':'Home Page',
+#             'year':datetime.now().year,
+#         }
+#     )
+
 def home(request):
     """Renders the home page."""
     assert isinstance(request, HttpRequest)
     return render(
         request,
-        'app/index.html',
+        'app/vtk_demo.html',
         {
-            'title':'Home Page',
+            'title':'VTK Page',
             'year':datetime.now().year,
         }
     )
