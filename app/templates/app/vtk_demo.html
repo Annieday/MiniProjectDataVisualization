@@ -1,25 +1,16 @@
 <!DOCTYPE html>
 <html>
+<head>
+    <meta http-equiv="Content-type" content="text/html; charset=utf-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ title }} - Python Django Application</title>
+    {% load staticfiles %}
+{#    <link rel="stylesheet" type="text/css" href="{% static 'app/content/bootstrap.min.css' %}" />#}
+{#    <link rel="stylesheet" type="text/css" href="{% static 'app/content/site.css' %}" />#}
+{#    <script src="{% static 'app/scripts/modernizr-2.6.2.js' %}"></script>#}
+</head>
+
 <body>
-<script type="text/javascript" src="https://unpkg.com/vtk.js"></script>
-<script type="text/javascript">
-  // --------------------------------------------------------------------------
-  // Example code
-  // --------------------------------------------------------------------------
-  var fullScreenRenderer = vtk.Rendering.Misc.vtkFullScreenRenderWindow.newInstance();
-  var actor = vtk.Rendering.Core.vtkActor.newInstance();
-  var mapper = vtk.Rendering.Core.vtkMapper.newInstance();
-  var cone = vtk.Filters.Sources.vtkConeSource.newInstance();
-
-  actor.setMapper(mapper);
-  mapper.setInputConnection(cone.getOutputPort());
-
-  var renderer = fullScreenRenderer.getRenderer();
-  renderer.addActor(actor);
-  renderer.resetCamera();
-
-  var renderWindow = fullScreenRenderer.getRenderWindow();
-  renderWindow.render();
-</script>
+    <script src="{% static 'app/scripts/build/build.js' %}"></script>
 </body>
 </html>

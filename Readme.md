@@ -1,11 +1,27 @@
 | Language | Framework | Platform | Author |
 | -------- | -------- |--------|--------|
-| Python | Django | Azure Web App, Virtual Machine| |
+| Python | Django | Azure Web App, Virtual Machine| Anni Dai, Chenrui Lei|
 
 
 # Python Django web application
 
 Sample Python Django web application built using Visual Studio 2017.
+
+# Development Enviroment
+1. clone the repo
+1. setup python virtual environment
+1. activate virtual environment
+1. run `pip install -r requirement.txt`
+1. run `npm install`
+
+# Compile and Run
+1. run `npm start`
+1. wait for code to compile
+1. run `manager.py runserver`
+
+# Development Note
+Whenever a new script is added, import it in main.js. It will automatically compiled through webpack and been 
+included in the build.js which is imported in vtk_demo.html.
 
 ## License:
 

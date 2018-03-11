@@ -6,14 +6,20 @@
   "dependencies": {
     "vtk.js": "^6.3.11"
   },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/Annieday/MiniProjectDataVisualization.git"
-  },
   "author": "",
   "license": "ISC",
   "bugs": {
     "url": "https://github.com/Annieday/MiniProjectDataVisualization/issues"
   },
-  "homepage": "https://github.com/Annieday/MiniProjectDataVisualization#readme"
+  "homepage": "https://github.com/Annieday/MiniProjectDataVisualization#readme",
+  "devDependencies": {
+    "kw-web-suite": "^5.0.1"
+  },
+  "scripts": {
+    "build": "webpack",
+    "build:release": "webpack -p",
+    "start": "webpack-dev-server --content-base ./dist",
+    "commit": "git cz",
+    "semantic-release": "semantic-release"
+  }
 }
