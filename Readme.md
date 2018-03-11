@@ -15,6 +15,7 @@ Sample Python Django web application built using Visual Studio 2017.
 1. run `npm install`
 
 # Compile and Run
+1. run `npm run build`
 1. run `npm start`
 1. wait for code to compile
 1. run `manager.py runserver`

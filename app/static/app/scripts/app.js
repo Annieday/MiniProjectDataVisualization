@@ -14437,7 +14437,7 @@ exports.default = { newInstance: newInstance, extend: extend };
 /* 45 */
 /***/ (function(module, exports, __webpack_require__) {
 
-/* WEBPACK VAR INJECTION */(function(global) {module.exports = global["MyWebApp"] = __webpack_require__(46);
+/* WEBPACK VAR INJECTION */(function(global) {module.exports = global["app"] = __webpack_require__(46);
 /* WEBPACK VAR INJECTION */}.call(exports, __webpack_require__(20)))
 
 /***/ }),

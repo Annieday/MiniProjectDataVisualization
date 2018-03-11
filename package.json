@@ -18,7 +18,7 @@
   "scripts": {
     "build": "webpack",
     "build:release": "webpack -p",
-    "start": "webpack-dev-server --content-base ./app/static/app/scripts/build",
+    "start": "webpack-dev-server --content-base ./static/app/scripts/build",
     "commit": "git cz",
     "semantic-release": "semantic-release"
   }
