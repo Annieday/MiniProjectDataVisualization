@@ -10,7 +10,9 @@ body {
     font-family: "Segoe UI";
     src: url('../fonts/segoeuil.ttf');
 }
-
+.container.body-content{
+    margin-top: 50px !important;
+}
 .main-container {
     height: 400px;
     width: 100%;
