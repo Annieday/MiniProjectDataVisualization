@@ -24,6 +24,11 @@ Sample Python Django web application built using Visual Studio 2017.
 Whenever a new script is added, import it in main.js. It will automatically compiled through webpack and been 
 included in the build.js which is imported in vtk_demo.html.
 
+# build for Deploy
+1. run `npm run build:release`
+1. run `manager.py collectstatic`
+1. commit and push to github
+
 ## License:
 
 See [LICENSE](LICENSE).
