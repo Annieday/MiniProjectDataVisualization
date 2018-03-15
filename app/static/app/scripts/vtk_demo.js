@@ -2,28 +2,61 @@
 /* eslint-disable import/no-extraneous-dependencies */
 
 import 'vtk.js/Sources/favicon';
-import JSZip from 'jszip';
 
 import macro from 'vtk.js/Sources/macro';
-
 import HttpDataAccessHelper from 'vtk.js/Sources/IO/Core/DataAccessHelper/HttpDataAccessHelper';
-import vtkFullScreenRenderWindow from 'vtk.js/Sources/Rendering/Misc/FullScreenRenderWindow';
-import vtkURLExtract from 'vtk.js/Sources/Common/Core/URLExtract';
-
-import vtkOBJReader from 'vtk.js/Sources/IO/Misc/OBJReader';
-import vtkMTLReader from 'vtk.js/Sources/IO/Misc/MTLReader';
-import vtkMapper from 'vtk.js/Sources/Rendering/Core/Mapper';
 import vtkActor from 'vtk.js/Sources/Rendering/Core/Actor';
+import vtkColorMaps from 'vtk.js/Sources/Rendering/Core/ColorTransferFunction/ColorMaps';
+import vtkColorTransferFunction from 'vtk.js/Sources/Rendering/Core/ColorTransferFunction';
+import vtkFullScreenRenderWindow from 'vtk.js/Sources/Rendering/Misc/FullScreenRenderWindow';
+import vtkMapper from 'vtk.js/Sources/Rendering/Core/Mapper';
+import vtkURLExtract from 'vtk.js/Sources/Common/Core/URLExtract';
+import vtkXMLPolyDataReader from 'vtk.js/Sources/IO/XML/XMLPolyDataReader';
+import vtkFPSMonitor from 'vtk.js/Sources/Interaction/UI/FPSMonitor';
 
-import style from '../content/OBJViewer.mcss';
+import {
+  ColorMode,
+  ScalarMode,
+} from 'vtk.js/Sources/Rendering/Core/Mapper/Constants';
 
-const iOS = /iPad|iPhone|iPod/.test(window.navigator.platform);
+import style from '../content/GeometryViewer.mcss';
+// import icon from '../../../Documentation/content/icon/favicon-96x96.png';
+
 let autoInit = true;
+let background = [0, 0, 0];
+let renderWindow;
+let renderer;
 
-// Add class to body if iOS device --------------------------------------------
+global.pipeline = {};
 
-if (iOS) {
-  document.querySelector('body').classList.add('is-ios-device');
+// Process arguments from URL
+const userParams = vtkURLExtract.extractURLParameters();
+
+// Background handling
+if (userParams.background) {
+  background = userParams.background.split(',').map((s) => Number(s));
+}
+const selectorClass =
+  background.length === 3 && background.reduce((a, b) => a + b, 0) < 1.5
+    ? style.dark
+    : style.light;
+
+// lut
+const lutName = userParams.lut || 'erdc_rainbow_bright';
+
+// field
+const field = userParams.field || '';
+
+// camera
+function updateCamera(camera) {
+  ['zoom', 'pitch', 'elevation', 'yaw', 'azimuth', 'roll', 'dolly'].forEach(
+    (key) => {
+      if (userParams[key]) {
+        camera[key](userParams[key]);
+      }
+      renderWindow.render();
+    }
+  );
 }
 
 function preventDefaults(e) {
@@ -31,136 +64,341 @@ function preventDefaults(e) {
   e.stopPropagation();
 }
 
+// ----------------------------------------------------------------------------
+// DOM containers for UI control
+// ----------------------------------------------------------------------------
+
+const rootControllerContainer = document.createElement('div');
+rootControllerContainer.setAttribute('class', style.rootController);
+
+const addDataSetButton = document.createElement('img');
+addDataSetButton.setAttribute('class', style.button);
+// addDataSetButton.setAttribute('src', icon);
+addDataSetButton.addEventListener('click', () => {
+  const isVisible = rootControllerContainer.style.display !== 'none';
+  rootControllerContainer.style.display = isVisible ? 'none' : 'flex';
+});
+
+const fpsMonitor = vtkFPSMonitor.newInstance();
+const fpsElm = fpsMonitor.getFpsMonitorContainer();
+fpsElm.classList.add(style.fpsMonitor);
+
+// ----------------------------------------------------------------------------
+// Add class to body if iOS device
+// ----------------------------------------------------------------------------
+
+const iOS = /iPad|iPhone|iPod/.test(window.navigator.platform);
+
+if (iOS) {
+  document.querySelector('body').classList.add('is-ios-device');
+}
+
+// ----------------------------------------------------------------------------
+
 function emptyContainer(container) {
+  fpsMonitor.setContainer(null);
   while (container.firstChild) {
     container.removeChild(container.firstChild);
   }
 }
 
-function loadZipContent(zipContent, renderWindow, renderer) {
-  const fileContents = { obj: {}, mtl: {}, img: {} };
-  const zip = new JSZip();
-  zip.loadAsync(zipContent).then(() => {
-    let workLoad = 0;
+// ----------------------------------------------------------------------------
 
-    function done() {
-      if (workLoad !== 0) {
-        return;
-      }
-      // Attach images to MTLs
-      Object.keys(fileContents.mtl).forEach((mtlFilePath) => {
-        const mtlReader = fileContents.mtl[mtlFilePath];
-        const basePath = mtlFilePath
-          .split('/')
-          .filter((v, i, a) => i < a.length - 1)
-          .join('/');
-        mtlReader.listImages().forEach((relPath) => {
-          const key = `${basePath}/${relPath}`;
-          const imgSRC = fileContents.img[key];
-          if (imgSRC) {
-            mtlReader.setImageSrc(relPath, imgSRC);
-          }
-        });
-      });
-
-      // Create pipeline from obj
-      Object.keys(fileContents.obj).forEach((objFilePath) => {
-        const mtlFilePath = objFilePath.replace(/\.obj$/, '.mtl');
-        const objReader = fileContents.obj[objFilePath];
-        const mtlReader = fileContents.mtl[mtlFilePath];
-
-        const size = objReader.getNumberOfOutputPorts();
-        for (let i = 0; i < size; i++) {
-          const source = objReader.getOutputData(i);
-          const mapper = vtkMapper.newInstance();
-          const actor = vtkActor.newInstance();
-          const name = source.get('name').name;
-
-          actor.setMapper(mapper);
-          mapper.setInputData(source);
-          renderer.addActor(actor);
-
-          if (mtlReader && name) {
-            mtlReader.applyMaterialToActor(name, actor);
-          }
-        }
-      });
-      renderer.resetCamera();
-      renderWindow.render();
-
-      // Rerender with hopefully all the textures loaded
-      setTimeout(renderWindow.render, 500);
-    }
-
-    zip.forEach((relativePath, zipEntry) => {
-      if (relativePath.match(/\.obj$/i)) {
-        workLoad++;
-        zipEntry.async('string').then((txt) => {
-          const reader = vtkOBJReader.newInstance({ splitMode: 'usemtl' });
-          reader.parseAsText(txt);
-          fileContents.obj[relativePath] = reader;
-          workLoad--;
-          done();
-        });
-      }
-      if (relativePath.match(/\.mtl$/i)) {
-        workLoad++;
-        zipEntry.async('string').then((txt) => {
-          const reader = vtkMTLReader.newInstance();
-          reader.parseAsText(txt);
-          fileContents.mtl[relativePath] = reader;
-          workLoad--;
-          done();
-        });
-      }
-      if (relativePath.match(/\.jpg$/i) || relativePath.match(/\.png$/i)) {
-        workLoad++;
-        zipEntry.async('base64').then((txt) => {
-          const ext = relativePath.slice(-3).toLowerCase();
-          fileContents.img[relativePath] = `data:image/${ext};base64,${txt}`;
-          workLoad--;
-          done();
-        });
-      }
-    });
+function createViewer(container) {
+  const fullScreenRenderer = vtkFullScreenRenderWindow.newInstance({
+    background,
+    rootContainer: container,
+    containerStyle: { height: '100%', width: '100%', position: 'absolute' },
   });
+  renderer = fullScreenRenderer.getRenderer();
+  renderWindow = fullScreenRenderer.getRenderWindow();
+  renderWindow.getInteractor().setDesiredUpdateRate(15);
+
+  container.appendChild(rootControllerContainer);
+  container.appendChild(addDataSetButton);
+
+  if (userParams.fps) {
+    if (Array.isArray(userParams.fps)) {
+      fpsMonitor.setMonitorVisibility(...userParams.fps);
+      if (userParams.fps.length === 4) {
+        fpsMonitor.setOrientation(userParams.fps[3]);
+      }
+    }
+    fpsMonitor.setRenderWindow(renderWindow);
+    fpsMonitor.setContainer(container);
+    fullScreenRenderer.setResizeCallback(fpsMonitor.update);
+  }
 }
+
+// ----------------------------------------------------------------------------
+
+function createPipeline(fileName, fileContents) {
+  // Create UI
+  const presetSelector = document.createElement('select');
+  presetSelector.setAttribute('class', selectorClass);
+  presetSelector.innerHTML = vtkColorMaps.rgbPresetNames
+    .map(
+      (name) =>
+        `<option value="${name}" ${
+          lutName === name ? 'selected="selected"' : ''
+        }>${name}</option>`
+    )
+    .join('');
+
+  const representationSelector = document.createElement('select');
+  representationSelector.setAttribute('class', selectorClass);
+  representationSelector.innerHTML = [
+    'Hidden',
+    'Points',
+    'Wireframe',
+    'Surface',
+    'Surface with Edge',
+  ]
+    .map(
+      (name, idx) =>
+        `<option value="${idx === 0 ? 0 : 1}:${idx < 4 ? idx - 1 : 2}:${
+          idx === 4 ? 1 : 0
+        }">${name}</option>`
+    )
+    .join('');
+  representationSelector.value = '1:2:0';
+
+  const colorBySelector = document.createElement('select');
+  colorBySelector.setAttribute('class', selectorClass);
+
+  const componentSelector = document.createElement('select');
+  componentSelector.setAttribute('class', selectorClass);
+  componentSelector.style.display = 'none';
+
+  const opacitySelector = document.createElement('input');
+  opacitySelector.setAttribute('class', selectorClass);
+  opacitySelector.setAttribute('type', 'range');
+  opacitySelector.setAttribute('value', '100');
+  opacitySelector.setAttribute('max', '100');
+  opacitySelector.setAttribute('min', '1');
+
+  const labelSelector = document.createElement('label');
+  labelSelector.setAttribute('class', selectorClass);
+  labelSelector.innerHTML = fileName;
+
+  const controlContainer = document.createElement('div');
+  controlContainer.setAttribute('class', style.control);
+  controlContainer.appendChild(labelSelector);
+  controlContainer.appendChild(representationSelector);
+  controlContainer.appendChild(presetSelector);
+  controlContainer.appendChild(colorBySelector);
+  controlContainer.appendChild(componentSelector);
+  controlContainer.appendChild(opacitySelector);
+  rootControllerContainer.appendChild(controlContainer);
+
+  // VTK pipeline
+  const vtpReader = vtkXMLPolyDataReader.newInstance();
+  vtpReader.parseAsArrayBuffer(fileContents);
+
+  const lookupTable = vtkColorTransferFunction.newInstance();
+  const source = vtpReader.getOutputData(0);
+  const mapper = vtkMapper.newInstance({
+    interpolateScalarsBeforeMapping: false,
+    useLookupTableScalarRange: true,
+    lookupTable,
+    scalarVisibility: false,
+  });
+  const actor = vtkActor.newInstance();
+  const scalars = source.getPointData().getScalars();
+  const dataRange = [].concat(scalars ? scalars.getRange() : [0, 1]);
+
+  // --------------------------------------------------------------------
+  // Color handling
+  // --------------------------------------------------------------------
+
+  function applyPreset() {
+    const preset = vtkColorMaps.getPresetByName(presetSelector.value);
+    lookupTable.applyColorMap(preset);
+    lookupTable.setMappingRange(dataRange[0], dataRange[1]);
+    lookupTable.updateRange();
+  }
+  applyPreset();
+  presetSelector.addEventListener('change', applyPreset);
+
+  // --------------------------------------------------------------------
+  // Representation handling
+  // --------------------------------------------------------------------
+
+  function updateRepresentation(event) {
+    const [
+      visibility,
+      representation,
+      edgeVisibility,
+    ] = event.target.value.split(':').map(Number);
+    actor.getProperty().set({ representation, edgeVisibility });
+    actor.setVisibility(!!visibility);
+    renderWindow.render();
+  }
+  representationSelector.addEventListener('change', updateRepresentation);
+
+  // --------------------------------------------------------------------
+  // Opacity handling
+  // --------------------------------------------------------------------
+
+  function updateOpacity(event) {
+    const opacity = Number(event.target.value) / 100;
+    actor.getProperty().setOpacity(opacity);
+    renderWindow.render();
+  }
+
+  opacitySelector.addEventListener('input', updateOpacity);
+
+  // --------------------------------------------------------------------
+  // ColorBy handling
+  // --------------------------------------------------------------------
+
+  const colorByOptions = [{ value: ':', label: 'Solid color' }].concat(
+    source
+      .getPointData()
+      .getArrays()
+      .map((a) => ({
+        label: `(p) ${a.getName()}`,
+        value: `PointData:${a.getName()}`,
+      })),
+    source
+      .getCellData()
+      .getArrays()
+      .map((a) => ({
+        label: `(c) ${a.getName()}`,
+        value: `CellData:${a.getName()}`,
+      }))
+  );
+  colorBySelector.innerHTML = colorByOptions
+    .map(
+      ({ label, value }) =>
+        `<option value="${value}" ${
+          field === value ? 'selected="selected"' : ''
+        }>${label}</option>`
+    )
+    .join('');
+
+  function updateColorBy(event) {
+    const [location, colorByArrayName] = event.target.value.split(':');
+    const interpolateScalarsBeforeMapping = location === 'PointData';
+    let colorMode = ColorMode.DEFAULT;
+    let scalarMode = ScalarMode.DEFAULT;
+    const scalarVisibility = location.length > 0;
+    if (scalarVisibility) {
+      const activeArray = source[`get${location}`]().getArrayByName(
+        colorByArrayName
+      );
+      const newDataRange = activeArray.getRange();
+      dataRange[0] = newDataRange[0];
+      dataRange[1] = newDataRange[1];
+      colorMode = ColorMode.MAP_SCALARS;
+      scalarMode =
+        location === 'PointData'
+          ? ScalarMode.USE_POINT_FIELD_DATA
+          : ScalarMode.USE_CELL_FIELD_DATA;
+
+      const numberOfComponents = activeArray.getNumberOfComponents();
+      if (numberOfComponents > 1) {
+        // always start on magnitude setting
+        if (mapper.getLookupTable()) {
+          const lut = mapper.getLookupTable();
+          lut.setVectorModeToMagnitude();
+        }
+        componentSelector.style.display = 'block';
+        const compOpts = ['Magnitude'];
+        while (compOpts.length <= numberOfComponents) {
+          compOpts.push(`Component ${compOpts.length}`);
+        }
+        componentSelector.innerHTML = compOpts
+          .map((t, index) => `<option value="${index - 1}">${t}</option>`)
+          .join('');
+      } else {
+        componentSelector.style.display = 'none';
+      }
+    } else {
+      componentSelector.style.display = 'none';
+    }
+    mapper.set({
+      colorByArrayName,
+      colorMode,
+      interpolateScalarsBeforeMapping,
+      scalarMode,
+      scalarVisibility,
+    });
+    applyPreset();
+  }
+  colorBySelector.addEventListener('change', updateColorBy);
+  updateColorBy({ target: colorBySelector });
+
+  function updateColorByComponent(event) {
+    if (mapper.getLookupTable()) {
+      const lut = mapper.getLookupTable();
+      if (event.target.value === -1) {
+        lut.setVectorModeToMagnitude();
+      } else {
+        lut.setVectorModeToComponent();
+        lut.setVectorComponent(Number(event.target.value));
+      }
+      renderWindow.render();
+    }
+  }
+  componentSelector.addEventListener('change', updateColorByComponent);
+
+  // --------------------------------------------------------------------
+  // Pipeline handling
+  // --------------------------------------------------------------------
+
+  actor.setMapper(mapper);
+  mapper.setInputData(source);
+  renderer.addActor(actor);
+
+  // Manage update when lookupTable change
+  lookupTable.onModified(() => {
+    renderWindow.render();
+  });
+
+  // First render
+  renderer.resetCamera();
+  renderWindow.render();
+
+  global.pipeline[fileName] = {
+    actor,
+    mapper,
+    source,
+    lookupTable,
+    renderer,
+    renderWindow,
+  };
+
+  // Update stats
+  fpsMonitor.update();
+}
+
+// ----------------------------------------------------------------------------
+
+function loadFile(file) {
+  const reader = new FileReader();
+  reader.onload = function onLoad(e) {
+    console.log(file.name);
+    createPipeline('test.vtp', reader.result);
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+// ----------------------------------------------------------------------------
 
 export function load(container, options) {
   autoInit = false;
   emptyContainer(container);
 
-  const fullScreenRenderer = vtkFullScreenRenderWindow.newInstance({
-    background: [0, 0, 0],
-    rootContainer: container,
-    containerStyle: { height: '100%', width: '100%', position: 'absolute' },
-  });
-  const renderer = fullScreenRenderer.getRenderer();
-  const renderWindow = fullScreenRenderer.getRenderWindow();
-
-  if (options.file) {
-    if (options.ext === 'obj') {
-      const reader = new FileReader();
-      reader.onload = function onLoad(e) {
-        const objReader = vtkOBJReader.newInstance();
-        objReader.parseAsText(reader.result);
-        const nbOutputs = objReader.getNumberOfOutputPorts();
-        for (let idx = 0; idx < nbOutputs; idx++) {
-          const source = objReader.getOutputData(idx);
-          const mapper = vtkMapper.newInstance();
-          const actor = vtkActor.newInstance();
-          actor.setMapper(mapper);
-          mapper.setInputData(source);
-          renderer.addActor(actor);
-        }
-        renderer.resetCamera();
-        renderWindow.render();
-      };
-      reader.readAsText(options.file);
-    } else {
-      loadZipContent(options.file, renderWindow, renderer);
+  if (options.files) {
+    createViewer(container);
+    let count = options.files.length;
+    while (count--) {
+      loadFile(options.files[count]);
     }
+    updateCamera(renderer.getActiveCamera());
   } else if (options.fileURL) {
+    const urls = [].concat(options.fileURL);
     const progressContainer = document.createElement('div');
     progressContainer.setAttribute('class', style.progress);
     container.appendChild(progressContainer);
@@ -178,12 +416,27 @@ export function load(container, options) {
       }
     };
 
-    HttpDataAccessHelper.fetchBinary(options.fileURL, {
-      progressCallback,
-    }).then((content) => {
-      container.removeChild(progressContainer);
-      loadZipContent(content, renderWindow, renderer);
-    });
+    createViewer(container);
+    const nbURLs = urls.length;
+    let nbLoadedData = 0;
+
+    /* eslint-disable no-loop-func */
+    while (urls.length) {
+      const url = urls.pop();
+      const name = Array.isArray(userParams.name)
+        ? userParams.name[urls.length]
+        : `Data ${urls.length + 1}`;
+      HttpDataAccessHelper.fetchBinary(url, {
+        progressCallback,
+      }).then((binary) => {
+        nbLoadedData++;
+        if (nbLoadedData === nbURLs) {
+          container.removeChild(progressContainer);
+        }
+        createPipeline(name, binary);
+        updateCamera(renderer.getActiveCamera());
+      });
+    }
   }
 }
 
@@ -204,7 +457,7 @@ export function initLocalFileLoader(container) {
   const fileContainer = document.createElement('div');
   fileContainer.innerHTML = `<div class="${
     style.bigFileDrop
-  }"/><input type="file" accept=".zip,.obj" style="display: none;"/>`;
+  }"/><input type="file" multiple accept=".vtp" style="display: none;"/>`;
   myContainer.appendChild(fileContainer);
 
   const fileInput = fileContainer.querySelector('input');
@@ -213,10 +466,9 @@ export function initLocalFileLoader(container) {
     preventDefaults(e);
     const dataTransfer = e.dataTransfer;
     const files = e.target.files || dataTransfer.files;
-    if (files.length === 1) {
+    if (files.length > 0) {
       myContainer.removeChild(fileContainer);
-      const ext = files[0].name.split('.').slice(-1)[0];
-      load(myContainer, { file: files[0], ext });
+      load(myContainer, { files });
     }
   }
 
@@ -228,17 +480,17 @@ export function initLocalFileLoader(container) {
 
 // Look at URL an see if we should load a file
 // ?fileURL=https://data.kitware.com/api/v1/item/59cdbb588d777f31ac63de08/download
-const userParams = vtkURLExtract.extractURLParameters();
-
 if (userParams.url || userParams.fileURL) {
   const exampleContainer = document.querySelector('.content');
   const rootBody = document.querySelector('body');
   const myContainer = exampleContainer || rootBody;
+
   if (myContainer) {
     myContainer.classList.add(style.fullScreen);
     rootBody.style.margin = '0';
     rootBody.style.padding = '0';
   }
+
   load(myContainer, userParams);
 }
 
