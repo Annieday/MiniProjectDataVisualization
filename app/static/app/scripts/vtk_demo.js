@@ -11,7 +11,10 @@ import vtkColorTransferFunction from 'vtk.js/Sources/Rendering/Core/ColorTransfe
 import vtkFullScreenRenderWindow from 'vtk.js/Sources/Rendering/Misc/FullScreenRenderWindow';
 import vtkMapper from 'vtk.js/Sources/Rendering/Core/Mapper';
 import vtkURLExtract from 'vtk.js/Sources/Common/Core/URLExtract';
+import vtkCubeSource from 'vtk.js/Sources/Filters/Sources/CubeSource';
+import vtkSphereSource from 'vtk.js/Sources/Filters/Sources/SphereSource';
 import vtkXMLPolyDataReader from 'vtk.js/Sources/IO/XML/XMLPolyDataReader';
+
 import vtkFPSMonitor from 'vtk.js/Sources/Interaction/UI/FPSMonitor';
 
 import {
@@ -21,6 +24,7 @@ import {
 
 import style from '../content/GeometryViewer.mcss';
 // import icon from '../../../Documentation/content/icon/favicon-96x96.png';
+import controlPanel from '../content/controlPanel.html';
 
 let autoInit = true;
 let background = [0, 0, 0];
@@ -43,7 +47,7 @@ const selectorClass =
         : style.light;
 
 // lut
-const lutName = userParams.lut || 'erdc_rainbow_bright';
+const lutName = userParams.lut || 'RED_TEMPERATURE';//'erdc_rainbow_bright';
 
 // field
 const field = userParams.field || '';
@@ -115,6 +119,44 @@ function createViewer(container) {
     renderer = fullScreenRenderer.getRenderer();
     renderWindow = fullScreenRenderer.getRenderWindow();
     renderWindow.getInteractor().setDesiredUpdateRate(15);
+
+    fullScreenRenderer.addController(controlPanel);
+
+    // bind the dimension control
+    ['xLength','yLength','zLength'].forEach((propertyName) => {
+        document.querySelector(`.${propertyName}`).addEventListener('input', (e) =>{
+            const value = Number(e.target.value) * 100;
+            global.pipeline['cube'].cubeSource.set({[propertyName]: value});
+            renderer.resetCameraClippingRange();
+            renderWindow.render();
+        })
+    })
+
+    // bind the position control
+    const centerElems = document.querySelectorAll('.center');
+    const rotationsElems = document.querySelectorAll('.rotations');
+
+    function updateTransformedCube() {
+        const center = [0, 0, 0];
+        const rotations = [0, 0, 0];
+        for (let i = 0; i < 3; i++) {
+            center[Number(centerElems[i].dataset.index)] = Number(centerElems[i].value);
+            rotations[Number(rotationsElems[i].dataset.index)] = Number(
+                rotationsElems[i].value
+            );
+        }
+        global.pipeline['cube'].cubeSource.set({ center, rotations });
+        renderer.resetCameraClippingRange();
+        renderWindow.render();
+    }
+
+    for (let i = 0; i < 3; i++) {
+        centerElems[i].addEventListener('input', updateTransformedCube);
+        rotationsElems[i].addEventListener('input', updateTransformedCube);
+    }
+
+
+
 
     container.appendChild(rootControllerContainer);
     container.appendChild(addDataSetButton);
@@ -199,13 +241,19 @@ function createPipeline(fileName, fileContents) {
 
     const lookupTable = vtkColorTransferFunction.newInstance();
     const source = vtpReader.getOutputData(0);
+    const cubeSource = vtkCubeSource.newInstance();
+    const camSource = vtkSphereSource.newInstance();
     const mapper = vtkMapper.newInstance({
         interpolateScalarsBeforeMapping: false,
         useLookupTableScalarRange: true,
         lookupTable,
         scalarVisibility: false,
     });
-    const actor = vtkActor.newInstance();
+    const cubeMapper = vtkMapper.newInstance();
+    const camMapper = vtkMapper.newInstance();
+    const mapActor = vtkActor.newInstance();
+    const cubeActor = vtkActor.newInstance();
+    const camActor = vtkActor.newInstance();
     const scalars = source.getPointData().getScalars();
     const dataRange = [].concat(scalars ? scalars.getRange() : [0, 1]);
 
@@ -233,8 +281,8 @@ function createPipeline(fileName, fileContents) {
             representation,
             edgeVisibility,
         ] = event.target.value.split(':').map(Number);
-        actor.getProperty().set({representation, edgeVisibility});
-        actor.setVisibility(!!visibility);
+        mapActor.getProperty().set({representation, edgeVisibility});
+        mapActor.setVisibility(!!visibility);
         renderWindow.render();
     }
 
@@ -246,7 +294,7 @@ function createPipeline(fileName, fileContents) {
 
     function updateOpacity(event) {
         const opacity = Number(event.target.value) / 100;
-        actor.getProperty().setOpacity(opacity);
+        mapActor.getProperty().setOpacity(opacity);
         renderWindow.render();
     }
 
@@ -349,13 +397,23 @@ function createPipeline(fileName, fileContents) {
 
     componentSelector.addEventListener('change', updateColorByComponent);
 
+    cubeSource.set({xLength: 52, yLength: 49.5, zLength: 84.5});
+    camSource.set({'radius': 5});
+    camActor.getProperty().setColor(247/255, 226/255, 104/255);
+
     // --------------------------------------------------------------------
     // Pipeline handling
     // --------------------------------------------------------------------
 
-    actor.setMapper(mapper);
+    mapActor.setMapper(mapper);
+    cubeActor.setMapper(cubeMapper);
+    camActor.setMapper(camMapper);
     mapper.setInputData(source);
-    renderer.addActor(actor);
+    cubeMapper.setInputConnection(cubeSource.getOutputPort());
+    camMapper.setInputConnection(camSource.getOutputPort());
+    renderer.addActor(mapActor);
+    renderer.addActor(cubeActor);
+    renderer.addActor(camActor);
     // settings for map object
 
     // Manage update when lookupTable change
@@ -363,21 +421,42 @@ function createPipeline(fileName, fileContents) {
         renderWindow.render();
     });
 
+
+    // camActor.setPosition(mapActor.getCenter());
+
     // First render
     renderer.resetCamera();
     renderWindow.render();
 
     global.pipeline[fileName] = {
-        actor,
+        actor: mapActor,
         mapper,
         source,
         lookupTable,
         renderer,
         renderWindow,
     };
+    global.pipeline['cube'] = {
+        actor: cubeActor,
+        cubeMapper,
+        cubeSource,
+        renderer,
+        renderWindow,
+    };
+    global.pipeline['cam'] = {
+        actor: camActor,
+        camMapper,
+        camSource,
+        renderer,
+        renderWindow,
+    };
+
+
+    camActor.setPosition(mapActor.getCenter());
+
     if (userParams.fileURL.includes(mapPrefix) || options.fileURL.includes(mapPrefix)) {
-        actor.setPosition(actor.getCenter());
-        actor.getProperty().setPointSize(3);
+        mapActor.setPosition(mapActor.getCenter());
+        mapActor.getProperty().setPointSize(3);
         renderWindow.render();
     }
     // Update stats
