@@ -23,7 +23,6 @@ import {
 } from 'vtk.js/Sources/Rendering/Core/Mapper/Constants';
 
 import style from '../content/GeometryViewer.mcss';
-// import icon from '../../../Documentation/content/icon/favicon-96x96.png';
 import controlPanel from '../content/controlPanel.html';
 
 let autoInit = true;
@@ -189,23 +188,23 @@ function createPipeline(fileName, fileContents) {
         )
         .join('');
 
-    const representationSelector = document.createElement('select');
-    representationSelector.setAttribute('class', selectorClass);
-    representationSelector.innerHTML = [
-        'Hidden',
-        'Points',
-        'Wireframe',
-        'Surface',
-        'Surface with Edge',
-    ]
-        .map(
-            (name, idx) =>
-                `<option value="${idx === 0 ? 0 : 1}:${idx < 4 ? idx - 1 : 2}:${
-                    idx === 4 ? 1 : 0
-                    }">${name}</option>`
-        )
-        .join('');
-    representationSelector.value = '1:2:0';
+    // const representationSelector = document.createElement('select');
+    // representationSelector.setAttribute('class', selectorClass);
+    // representationSelector.innerHTML = [
+    //     'Hidden',
+    //     'Points',
+    //     'Wireframe',
+    //     'Surface',
+    //     'Surface with Edge',
+    // ]
+    //     .map(
+    //         (name, idx) =>
+    //             `<option value="${idx === 0 ? 0 : 1}:${idx < 4 ? idx - 1 : 2}:${
+    //                 idx === 4 ? 1 : 0
+    //                 }">${name}</option>`
+    //     )
+    //     .join('');
+    // representationSelector.value = '1:2:0';
 
     const colorBySelector = document.createElement('select');
     colorBySelector.setAttribute('class', selectorClass);
@@ -228,7 +227,7 @@ function createPipeline(fileName, fileContents) {
     const controlContainer = document.createElement('div');
     controlContainer.setAttribute('class', style.control);
     controlContainer.appendChild(labelSelector);
-    controlContainer.appendChild(representationSelector);
+    // controlContainer.appendChild(representationSelector);
     controlContainer.appendChild(presetSelector);
     controlContainer.appendChild(colorBySelector);
     controlContainer.appendChild(componentSelector);
@@ -274,19 +273,19 @@ function createPipeline(fileName, fileContents) {
     // --------------------------------------------------------------------
     // Representation handling
     // --------------------------------------------------------------------
-
-    function updateRepresentation(event) {
-        const [
-            visibility,
-            representation,
-            edgeVisibility,
-        ] = event.target.value.split(':').map(Number);
-        mapActor.getProperty().set({representation, edgeVisibility});
-        mapActor.setVisibility(!!visibility);
-        renderWindow.render();
-    }
-
-    representationSelector.addEventListener('change', updateRepresentation);
+    //
+    // function updateRepresentation(event) {
+    //     const [
+    //         visibility,
+    //         representation,
+    //         edgeVisibility,
+    //     ] = event.target.value.split(':').map(Number);
+    //     mapActor.getProperty().set({representation, edgeVisibility});
+    //     mapActor.setVisibility(!!visibility);
+    //     renderWindow.render();
+    // }
+    //
+    // representationSelector.addEventListener('change', updateRepresentation);
 
     // --------------------------------------------------------------------
     // Opacity handling
