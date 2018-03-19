@@ -7,7 +7,7 @@
 
 Sample Python Django web application built using Visual Studio 2017.
 
-# Development Enviroment
+# Development Environment
 1. clone the repo
 1. setup python virtual environment
 1. activate virtual environment
