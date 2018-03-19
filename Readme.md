@@ -58,6 +58,12 @@ Module bundler to use vtk and transform ES6 to ES5 so that it can be processed b
 
 External packages needed by this application. The deployment script will pip install the packages listed in this file.
 
+    \FormatScript
+
+Contains python script that can parse depth image numpy array data into a 3D model and show it in a local interactive window.
+
+
+
 ### Additional files on server
 
 Some files exist on the server but are not added to the git repository.
