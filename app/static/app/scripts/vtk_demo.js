@@ -115,20 +115,147 @@ function emptyContainer(container) {
 
 // ----------------------------------------------------------------------------
 const STYLE_CONTROL_PANEL = {
-  position: 'absolute',
-  left: '25px',
-  top: '35px',
-  backgroundColor: 'white',
-  borderRadius: '5px',
-  listStyle: 'none',
-  padding: '5px 10px',
-  margin: '0',
-  display: 'block',
-  border: 'solid 1px black',
-  maxWidth: '40%',
-  maxHeight: '70%',
-  overflow: 'auto',
+    position: 'absolute',
+    left: '25px',
+    top: '35px',
+    backgroundColor: 'white',
+    borderRadius: '5px',
+    listStyle: 'none',
+    padding: '5px 10px',
+    margin: '0',
+    display: 'block',
+    border: 'solid 1px black',
+    maxWidth: '40%',
+    maxHeight: '70%',
+    overflow: 'auto',
 };
+
+//OBJ
+function loadOBJ(file) {
+    const reader = new FileReader();
+    reader.onload = function onLoad(e) {
+        const objReader = vtkOBJReader.newInstance();
+        objReader.parseAsText(reader.result);
+        const nbOutputs = objReader.getNumberOfOutputPorts();
+        for (let idx = 0; idx < nbOutputs; idx++) {
+            const source = objReader.getOutputData(idx);
+            const mapper = vtkMapper.newInstance();
+            const actor = vtkActor.newInstance();
+            actor.setMapper(mapper);
+            mapper.setInputData(source);
+            renderer.addActor(actor);
+            global.pipeline['obj'+idx] = {
+                actor: actor,
+                mapper,
+                source,
+                renderer,
+                renderWindow,
+            };
+        }
+        renderer.resetCamera();
+        renderWindow.render();
+    };
+    reader.readAsText(file);
+    createPipelineForOBJ();
+
+}
+
+//OBJ Zip
+function loadZipContent(zipContent, renderWindow, renderer) {
+    const fileContents = {obj: {}, mtl: {}, img: {}};
+    const zip = new JSZip();
+    zip.loadAsync(zipContent).then(() => {
+        let workLoad = 0;
+
+        function done() {
+            if (workLoad !== 0) {
+                return;
+            }
+            // Attach images to MTLs
+            Object.keys(fileContents.mtl).forEach((mtlFilePath) => {
+                const mtlReader = fileContents.mtl[mtlFilePath];
+                const basePath = mtlFilePath
+                    .split('/')
+                    .filter((v, i, a) => i < a.length - 1)
+                    .join('/');
+                mtlReader.listImages().forEach((relPath) => {
+                    const key = `${basePath}/${relPath}`;
+                    const imgSRC = fileContents.img[key];
+                    if (imgSRC) {
+                        mtlReader.setImageSrc(relPath, imgSRC);
+                    }
+                });
+            });
+
+            // Create pipeline from obj
+            Object.keys(fileContents.obj).forEach((objFilePath) => {
+                const mtlFilePath = objFilePath.replace(/\.obj$/, '.mtl');
+                const objReader = fileContents.obj[objFilePath];
+                const mtlReader = fileContents.mtl[mtlFilePath];
+
+                const size = objReader.getNumberOfOutputPorts();
+                for (let i = 0; i < size; i++) {
+                    const source = objReader.getOutputData(i);
+                    const mapper = vtkMapper.newInstance();
+                    const actor = vtkActor.newInstance();
+                    const name = source.get('name').name;
+
+                    actor.setMapper(mapper);
+                    mapper.setInputData(source);
+                    renderer.addActor(actor);
+                    global.pipeline['obj'+i] = {
+                        actor: actor,
+                        mapper,
+                        source,
+                        renderer,
+                        renderWindow,
+                    };
+                    if (mtlReader && name) {
+                        mtlReader.applyMaterialToActor(name, actor);
+                    }
+                }
+            });
+            renderer.resetCamera();
+            renderWindow.render();
+
+            // Rerender with hopefully all the textures loaded
+            setTimeout(renderWindow.render, 500);
+        }
+
+        zip.forEach((relativePath, zipEntry) => {
+            if (relativePath.match(/\.obj$/i)) {
+                workLoad++;
+                zipEntry.async('string').then((txt) => {
+                    const reader = vtkOBJReader.newInstance({splitMode: 'usemtl'});
+                    reader.parseAsText(txt);
+                    fileContents.obj[relativePath] = reader;
+                    workLoad--;
+                    done();
+                });
+            }
+            if (relativePath.match(/\.mtl$/i)) {
+                workLoad++;
+                zipEntry.async('string').then((txt) => {
+                    const reader = vtkMTLReader.newInstance();
+                    reader.parseAsText(txt);
+                    fileContents.mtl[relativePath] = reader;
+                    workLoad--;
+                    done();
+                });
+            }
+            if (relativePath.match(/\.jpg$/i) || relativePath.match(/\.png$/i)) {
+                workLoad++;
+                zipEntry.async('base64').then((txt) => {
+                    const ext = relativePath.slice(-3).toLowerCase();
+                    fileContents.img[relativePath] = `data:image/${ext};base64,${txt}`;
+                    workLoad--;
+                    done();
+                });
+            }
+        });
+    });
+    createPipelineForOBJ();
+}
 
 function createViewer(container) {
     const fullScreenRenderer = vtkFullScreenRenderWindow.newInstance({
@@ -145,8 +272,8 @@ function createViewer(container) {
     fullScreenRenderer.addController(controlPanel);
 
     // bind the dimension control
-    ['xLength','yLength','zLength'].forEach((propertyName) => {
-        document.querySelector(`.${propertyName}`).addEventListener('input', (e) =>{
+    ['xLength', 'yLength', 'zLength'].forEach((propertyName) => {
+        document.querySelector(`.${propertyName}`).addEventListener('input', (e) => {
             const value = Number(e.target.value) * 100;
             global.pipeline['cube'].cubeSource.set({[propertyName]: value});
             renderer.resetCameraClippingRange();
@@ -167,7 +294,7 @@ function createViewer(container) {
                 rotationsElems[i].value
             );
         }
-        global.pipeline['cube'].cubeSource.set({ center, rotations });
+        global.pipeline['cube'].cubeSource.set({center, rotations});
         renderer.resetCameraClippingRange();
         renderWindow.render();
     }
@@ -176,9 +303,6 @@ function createViewer(container) {
         centerElems[i].addEventListener('input', updateTransformedCube);
         rotationsElems[i].addEventListener('input', updateTransformedCube);
     }
-
-
-
 
     container.appendChild(rootControllerContainer);
     container.appendChild(addDataSetButton);
@@ -196,6 +320,73 @@ function createViewer(container) {
     }
 }
 
+function createPipelineForOBJ() {
+    // Create UI
+
+    const controlContainer = document.createElement('div');
+    controlContainer.setAttribute('class', style.control);
+    rootControllerContainer.appendChild(controlContainer);
+
+    const cubeSource = vtkCubeSource.newInstance();
+    const camSource = vtkSphereSource.newInstance();
+
+    const cubeMapper = vtkMapper.newInstance();
+    const camMapper = vtkMapper.newInstance();
+
+    const cubeActor = vtkActor.newInstance();
+    const camActor = vtkActor.newInstance();
+
+    cubeSource.set({xLength: 52, yLength: 49.5, zLength: 84.5});
+    camSource.set({'radius': 5});
+    camActor.getProperty().setColor(247 / 255, 226 / 255, 104 / 255);
+
+    // --------------------------------------------------------------------
+    // Pipeline handling
+    // --------------------------------------------------------------------
+
+    cubeActor.setMapper(cubeMapper);
+    camActor.setMapper(camMapper);
+
+    cubeMapper.setInputConnection(cubeSource.getOutputPort());
+    camMapper.setInputConnection(camSource.getOutputPort());
+
+    renderer.addActor(cubeActor);
+    renderer.addActor(camActor);
+    // settings for map object
+
+
+    // camActor.setPosition(mapActor.getCenter());
+
+    // First render
+    renderer.resetCamera();
+    renderWindow.render();
+
+    global.pipeline['cube'] = {
+        actor: cubeActor,
+        cubeMapper,
+        cubeSource,
+        renderer,
+        renderWindow,
+    };
+    global.pipeline['cam'] = {
+        actor: camActor,
+        camMapper,
+        camSource,
+        renderer,
+        renderWindow,
+    };
+
+    camActor.setPosition(global.pipeline['obj0'].actor.getCenter());
+
+    if (userParams.fileURL.includes(mapPrefix) || options.fileURL.includes(mapPrefix)) {
+        global.pipeline['obj0'].actor.setPosition(global.pipeline['obj0'].actor.getCenter());
+        global.pipeline['obj0'].actor.getProperty().setPointSize(3);
+        renderWindow.render();
+    }
+    // Update stats
+    fpsMonitor.update();
+}
+
 // ----------------------------------------------------------------------------
 
 function createPipeline(fileName, fileContents) {
@@ -210,24 +401,6 @@ function createPipeline(fileName, fileContents) {
                     }>${name}</option>`
         )
         .join('');
-
-    // const representationSelector = document.createElement('select');
-    // representationSelector.setAttribute('class', selectorClass);
-    // representationSelector.innerHTML = [
-    //     'Hidden',
-    //     'Points',
-    //     'Wireframe',
-    //     'Surface',
-    //     'Surface with Edge',
-    // ]
-    //     .map(
-    //         (name, idx) =>
-    //             `<option value="${idx === 0 ? 0 : 1}:${idx < 4 ? idx - 1 : 2}:${
-    //                 idx === 4 ? 1 : 0
-    //                 }">${name}</option>`
-    //     )
-    //     .join('');
-    // representationSelector.value = '1:2:0';
 
     const colorBySelector = document.createElement('select');
     colorBySelector.setAttribute('class', selectorClass);
@@ -292,23 +465,6 @@ function createPipeline(fileName, fileContents) {
 
     applyPreset();
     presetSelector.addEventListener('change', applyPreset);
-
-    // --------------------------------------------------------------------
-    // Representation handling
-    // --------------------------------------------------------------------
-    //
-    // function updateRepresentation(event) {
-    //     const [
-    //         visibility,
-    //         representation,
-    //         edgeVisibility,
-    //     ] = event.target.value.split(':').map(Number);
-    //     mapActor.getProperty().set({representation, edgeVisibility});
-    //     mapActor.setVisibility(!!visibility);
-    //     renderWindow.render();
-    // }
-    //
-    // representationSelector.addEventListener('change', updateRepresentation);
 
     // --------------------------------------------------------------------
     // Opacity handling
@@ -421,7 +577,7 @@ function createPipeline(fileName, fileContents) {
 
     cubeSource.set({xLength: 52, yLength: 49.5, zLength: 84.5});
     camSource.set({'radius': 5});
-    camActor.getProperty().setColor(247/255, 226/255, 104/255);
+    camActor.getProperty().setColor(247 / 255, 226 / 255, 104 / 255);
 
     // --------------------------------------------------------------------
     // Pipeline handling
@@ -502,10 +658,20 @@ export function load(container, options) {
     emptyContainer(container);
 
     if (options.files) {
+        console.log(options.files);
+        console.log(options.ext);
+
+
         createViewer(container);
-        let count = options.files.length;
-        while (count--) {
-            loadFile(options.files[count]);
+        if (options.files[0].name.includes('obj')) {
+            loadOBJ(options.files[0]);
+        } else if (options.files[0].name.includes('zip')) {
+            loadZipContent(options.files[0], renderWindow, renderer);
+        } else {
+            let count = options.files.length;
+            while (count--) {
+                loadFile(options.files[count]);
+            }
         }
         updateCamera(renderer.getActiveCamera());
     } else if (options.fileURL) {
@@ -568,7 +734,7 @@ export function initLocalFileLoader(container) {
     const fileContainer = document.createElement('div');
     fileContainer.innerHTML = `<div class="${
         style.bigFileDrop
-        }"/><input type="file" multiple accept=".vtp" style="display: none;"/>`;
+        }"/><input type="file" multiple accept=".vtp,.zip,.obj" style="display: none;"/>`;
     myContainer.appendChild(fileContainer);
 
     const fileInput = fileContainer.querySelector('input');
