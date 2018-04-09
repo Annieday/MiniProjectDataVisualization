@@ -86,7 +86,7 @@ addDataSetButton.addEventListener('click', () => {
 
 const fpsMonitor = vtkFPSMonitor.newInstance();
 const fpsElm = fpsMonitor.getFpsMonitorContainer();
-fpsElm.classList.add(style.fpsMonitor);
+fpsElm.classList.add(sty`le.fpsMonitor);
 
 // ----------------------------------------------------------------------------
 // Add class to body if iOS device
@@ -108,12 +108,29 @@ function emptyContainer(container) {
 }
 
 // ----------------------------------------------------------------------------
+const STYLE_CONTROL_PANEL = {
+  position: 'absolute',
+  left: '25px',
+  top: '35px',
+  backgroundColor: 'white',
+  borderRadius: '5px',
+  listStyle: 'none',
+  padding: '5px 10px',
+  margin: '0',
+  display: 'block',
+  border: 'solid 1px black',
+  maxWidth: '40%',
+  maxHeight: '70%',
+  overflow: 'auto',
+};
 
 function createViewer(container) {
     const fullScreenRenderer = vtkFullScreenRenderWindow.newInstance({
         background,
         rootContainer: container,
         containerStyle: {height: '100%', width: '100%', position: 'absolute'},
+        controlPanelStyle: STYLE_CONTROL_PANEL
+
     });
     renderer = fullScreenRenderer.getRenderer();
     renderWindow = fullScreenRenderer.getRenderWindow();
