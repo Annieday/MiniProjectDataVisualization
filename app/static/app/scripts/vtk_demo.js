@@ -2,6 +2,7 @@
 /* eslint-disable import/no-extraneous-dependencies */
 
 import 'vtk.js/Sources/favicon';
+import JSZip from 'jszip';
 
 import macro from 'vtk.js/Sources/macro';
 import HttpDataAccessHelper from 'vtk.js/Sources/IO/Core/DataAccessHelper/HttpDataAccessHelper';
@@ -16,6 +17,11 @@ import vtkSphereSource from 'vtk.js/Sources/Filters/Sources/SphereSource';
 import vtkXMLPolyDataReader from 'vtk.js/Sources/IO/XML/XMLPolyDataReader';
 
 import vtkFPSMonitor from 'vtk.js/Sources/Interaction/UI/FPSMonitor';
+
+//OBJ reader
+import vtkOBJReader from 'vtk.js/Sources/IO/Misc/OBJReader';
+import vtkMTLReader from 'vtk.js/Sources/IO/Misc/MTLReader';
+
 
 import {
     ColorMode,
@@ -86,7 +92,7 @@ addDataSetButton.addEventListener('click', () => {
 
 const fpsMonitor = vtkFPSMonitor.newInstance();
 const fpsElm = fpsMonitor.getFpsMonitorContainer();
-fpsElm.classList.add(sty`le.fpsMonitor);
+fpsElm.classList.add(style.fpsMonitor);
 
 // ----------------------------------------------------------------------------
 // Add class to body if iOS device
