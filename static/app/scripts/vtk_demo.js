@@ -131,7 +131,7 @@ const STYLE_CONTROL_PANEL = {
 };
 
 //OBJ
-function loadOBJ(file) {
+function loadOBJ(file, isBinary = false) {
     const reader = new FileReader();
     reader.onload = function onLoad(e) {
         const objReader = vtkOBJReader.newInstance();
@@ -144,7 +144,8 @@ function loadOBJ(file) {
             actor.setMapper(mapper);
             mapper.setInputData(source);
             renderer.addActor(actor);
-            global.pipeline['obj'+idx] = {
+            actor.getProperty().setOpacity(.6);
+            global.pipeline['obj' + idx] = {
                 actor: actor,
                 mapper,
                 source,
@@ -154,10 +155,14 @@ function loadOBJ(file) {
         }
         renderer.resetCamera();
         renderWindow.render();
-    };
-    reader.readAsText(file);
-    createPipelineForOBJ();
+        createPipelineForOBJ();
 
+    };
+    if (isBinary) {
+        file = new Blob([new Uint8Array(file)]);
+
+    }
+    reader.readAsText(file);
 }
 
 //OBJ Zip
@@ -201,9 +206,10 @@ function loadZipContent(zipContent, renderWindow, renderer) {
                     const name = source.get('name').name;
 
                     actor.setMapper(mapper);
+                    actor.getProperty().setOpacity(.6);
                     mapper.setInputData(source);
                     renderer.addActor(actor);
-                    global.pipeline['obj'+i] = {
+                    global.pipeline['obj' + i] = {
                         actor: actor,
                         mapper,
                         source,
@@ -253,8 +259,9 @@ function loadZipContent(zipContent, renderWindow, renderer) {
                 });
             }
         });
+        createPipelineForOBJ();
+
     });
-    createPipelineForOBJ();
 }
 
 function createViewer(container) {
@@ -328,34 +335,24 @@ function createPipelineForOBJ() {
     rootControllerContainer.appendChild(controlContainer);
 
     const cubeSource = vtkCubeSource.newInstance();
-    const camSource = vtkSphereSource.newInstance();
 
     const cubeMapper = vtkMapper.newInstance();
-    const camMapper = vtkMapper.newInstance();
 
     const cubeActor = vtkActor.newInstance();
-    const camActor = vtkActor.newInstance();
 
     cubeSource.set({xLength: 52, yLength: 49.5, zLength: 84.5});
-    camSource.set({'radius': 5});
-    camActor.getProperty().setColor(247 / 255, 226 / 255, 104 / 255);
+    cubeActor.getProperty().setColor(255 / 255, 127 / 255, 80 / 255);
 
     // --------------------------------------------------------------------
     // Pipeline handling
     // --------------------------------------------------------------------
 
     cubeActor.setMapper(cubeMapper);
-    camActor.setMapper(camMapper);
 
     cubeMapper.setInputConnection(cubeSource.getOutputPort());
-    camMapper.setInputConnection(camSource.getOutputPort());
 
     renderer.addActor(cubeActor);
-    renderer.addActor(camActor);
     // settings for map object
-
-
-    // camActor.setPosition(mapActor.getCenter());
 
     // First render
     renderer.resetCamera();
@@ -368,19 +365,11 @@ function createPipelineForOBJ() {
         renderer,
         renderWindow,
     };
-    global.pipeline['cam'] = {
-        actor: camActor,
-        camMapper,
-        camSource,
-        renderer,
-        renderWindow,
-    };
-
-    camActor.setPosition(global.pipeline['obj0'].actor.getCenter());
 
     if (userParams.fileURL.includes(mapPrefix) || options.fileURL.includes(mapPrefix)) {
-        global.pipeline['obj0'].actor.setPosition(global.pipeline['obj0'].actor.getCenter());
-        global.pipeline['obj0'].actor.getProperty().setPointSize(3);
+        var center = global.pipeline['obj0'].actor.getCenter();
+        global.pipeline['cube'].actor.setPosition(center[0], center[1] + 100, center[2]);
+        global.pipeline['obj0'].actor.setPosition(center);
         renderWindow.render();
     }
     // Update stats
@@ -710,7 +699,14 @@ export function load(container, options) {
                 if (nbLoadedData === nbURLs) {
                     container.removeChild(progressContainer);
                 }
-                createPipeline(name, binary);
+                if (url.includes('obj')) {
+                    loadOBJ(binary, true);
+
+                } else if (url.includes('zip')) {
+                    loadZipContent(binary, renderWindow, renderer);
+                } else {
+                    createPipeline(name, binary);
+                }
                 updateCamera(renderer.getActiveCamera());
             });
         }
