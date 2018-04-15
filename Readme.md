@@ -1,6 +1,6 @@
 | Language | Framework | Platform | Name| Author |
 | -------- | -------- |--------|--------|--------|
-| Python | Django | Azure Web App, Virtual Machine|Visualize LiDAR Scanner Data in 3D Space| Anni Dai, Chenrui Lei|
+| Python | Django | Azure Web App, Virtual Machine|Visualize LiDAR Scanner Data in 3D Space| Anni Dai, Chenrui Lei. Lin Tong|
 
 ## Application Overview
 
