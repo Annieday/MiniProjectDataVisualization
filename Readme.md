@@ -85,7 +85,7 @@ This enables the server to serve .vtp files
 # Build for Development
 1. run `npm run build`
 1. wait for code to compile
-1. run `manager.py runserver`
+1. run `python manager.py runserver`
 run `npm run build` every time when changes are made in js file that's imported by main.js
 
 # Development Note
