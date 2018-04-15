@@ -32,7 +32,10 @@ Here's an overview of the files you'll find in this Git repository
 Main sources for the application. Pages index, about, contact, layout and static contents and scripts include bootstrap, jquery, modernizr and respond are genrated by Azure.
 The main.js in \app\static\app is created for Webpack to bundle all ES6 Javascript.
 The vtk_demo.js in \app\static\app\scripts contains the front-end 3D view code
-The vtk_demo.html is the main page that can be accessed through https://miniprojectdatavisualization.azurewebsites.net
+The vtk_demo.html is the main page that can be accessed through https://mmdatavisualization.azurewebsites.net/
+
+For a demo, click on the Link below:
+https://mmdatavisualization.azurewebsites.net/?fileURL=https://mmdatavisualization.azurewebsites.net/static/app/img/map.vtp
 
     \manage.py
 
